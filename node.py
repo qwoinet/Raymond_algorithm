@@ -3,9 +3,13 @@ import pika
 import sys
 from threading import Timer
 from collections import deque
+import time
+import random
 
 EXCHANGE_NAME = 'central_communicator' # no more used
 NODE_NAME_PREFIX = "node_"
+
+NODE_RESTART_SLEEP_TIME = 5 # seconds
 
 MSG_INIT = "INITIALIZE"
 MSG_PRIVILEGE = "PRIVILEGE"
@@ -13,7 +17,15 @@ MSG_REQ = "REQUEST"
 MSG_RESTART = "RESTART"
 MSG_ADVISE = "ADVISE"
 
-NODE = None
+ADVISE_1 = "1"
+ADVISE_2 = "2"
+ADVISE_3 = "3"
+ADVISE_4 = "4"
+
+MEAN_TIME_CS_ENTER = 15
+MEAN_TIME_CS_QUIT = 7
+MEAN_TIME_CRASH = 18
+
 
 class Node:
     def __init__(
@@ -27,6 +39,12 @@ class Node:
         self.using = False
         self.request_Q = deque()
         self.asked = False
+
+        self.recovering = False
+        self.advise_answers = []
+
+        self.critical_section_timer = None
+        self.crash_timer = None
 
         self.channel = None
 
@@ -44,6 +62,24 @@ class Node:
             for n in self.neighbors:
                 self.send_msg(n, MSG_INIT)
 
+    def restart(self):
+        print("CRASHED... :(")
+        self.holder = None
+        self.using = False
+        self.request_Q = deque()
+        self.asked = False
+        if self.critical_section_timer:
+            self.critical_section_timer.cancel()
+        print("BEGIN RECOVERY")
+        self.recovering = True
+        self.advise_answers = []
+
+        time.sleep(NODE_RESTART_SLEEP_TIME)
+
+        for n in self.neighbors:
+            self.send_msg(n, MSG_RESTART)
+
+
     def consume(self):
         self.channel.basic_consume(
                 self.process_msg,
@@ -60,24 +96,33 @@ class Node:
     def quit_critical_section(self):
         self.using = False
         print("QUITTING CRITICAL SECTION")
+        self.critical_section_timer = create_timer(cs_entering_law, self.enter_critical_section)
         self.assign_privilege()
         self.make_request()
 
     def assign_privilege(self):
-        if self.holder == self.number and not self.using and len(self.request_Q) != 0:
+        if (not self.recovering and
+            self.holder == self.number and
+            not self.using and
+            len(self.request_Q) != 0
+            ):
             self.holder = self.request_Q.popleft()
             self.asked = False
             if(self.holder == self.number):
                 self.using = True
                 print("ENTERING CRITICAL SECTION")
-                timer = Timer(3, self.quit_critical_section, [])
-                timer.start()
+                self.critical_section_timer = create_timer(cs_quitting_law, self.quit_critical_section)
                 #print('using', self.using)
             else:
                 self.send_msg(self.holder, MSG_PRIVILEGE)
+                print("SEND PRIVILEGE TO %d" % self.holder)
 
     def make_request(self):
-        if self.holder != self.number and len(self.request_Q) != 0 and not self.asked:
+        if (not self.recovering and
+            self.holder != self.number and
+            len(self.request_Q) != 0 and
+            not self.asked
+            ):
             self.send_msg(self.holder, MSG_REQ)
             self.asked = True
 
@@ -102,13 +147,46 @@ class Node:
         self.make_request()
 
     def received_restart(self, msg_tuple):
-        pass
+        n = int(msg_tuple[1])
+        if self.holder == n:
+            if self.asked:
+                self.send_msg(n, MSG_ADVISE, ADVISE_2)
+            else:
+                self.send_msg(n, MSG_ADVISE, ADVISE_1)
+        else:
+            if n in self.request_Q: 
+                self.send_msg(n, MSG_ADVISE, ADVISE_4)
+            else:
+                self.send_msg(n, MSG_ADVISE, ADVISE_3)
 
     def received_advise(self, msg_tuple):
-        pass
+        n = int(msg_tuple[1])
+        self.advise_answers.append((n, msg_tuple[2]))
+        # TODO : check recovery id (if double recovery)
+        if self.recovering and len(self.advise_answers) == len(self.neighbors):
+            #determine holder and asked
+            holder_list = [(n, x) for (n, x) in self.advise_answers
+                        if x in (ADVISE_3, ADVISE_4)]
+            if self.holder is None:
+                if len(holder_list) == 0:
+                    self.holder = self.number
+                    self.holder = False
+                else:
+                    self.holder = holder_list[0][0]
+                    self.asked = (holder_list[0][1] == ADVISE_4)
+            #rebuild request_Q
+            for (n, x) in self.advise_answers:
+                if x == ADVISE_2:
+                    self.request_Q.append(n)
 
-    @staticmethod
-    def process_msg(channel, method, properties, body):
+            self.recovering = False
+            self.critical_section_timer = create_timer(cs_entering_law, self.enter_critical_section)
+            print("FINISHED RECOVERY")
+            self.assign_privilege()
+            self.make_request()
+
+
+    def process_msg(self, channel, method, properties, body):
         #print('channel', channel)
         #print('method', method)
         #print('properties', properties)
@@ -118,15 +196,15 @@ class Node:
         msg_type = msg_tuple[0]
 
         if(msg_type == MSG_INIT):
-            NODE.received_init(msg_tuple)
+            self.received_init(msg_tuple)
         elif(msg_type == MSG_PRIVILEGE):
-            NODE.received_privilege(msg_tuple)
+            self.received_privilege(msg_tuple)
         elif(msg_type == MSG_REQ):
-            NODE.received_req(msg_tuple)
+            self.received_req(msg_tuple)
         elif(msg_type == MSG_RESTART):
-            NODE.received_restart(msg_tuple)
+            self.received_restart(msg_tuple)
         elif(msg_type == MSG_ADVISE):
-            NODE.received_advise(msg_tuple)
+            self.received_advise(msg_tuple)
         else:
             print("unkown message type : ", msg_type)
 
@@ -140,22 +218,35 @@ class Node:
 
 
 
-def send_init_msg(channel, src, dest):
-    #channel.
-    pass
 
+def create_timer(law, callback):
+    l = law()
+    timer = Timer(l, callback, [])
+    timer.start()
+    print("\tcall function %s in %fsec" % (callback.__name__, l))
+    return timer
 
+def cs_entering_law():
+    return max(random.normalvariate(MEAN_TIME_CS_ENTER, 1), 0)
+
+def cs_quitting_law():
+    return max(random.normalvariate(MEAN_TIME_CS_QUIT, 0.4), 0)
+    
+def crash_law():
+    return max(random.normalvariate(MEAN_TIME_CRASH, 1), 0)
 
 
 if __name__ == '__main__':
-    NODE = Node(
+    node = Node(
             node_number=int(sys.argv[1]),
             neighbors=[int(n) for n in sys.argv[2:]],
             )
 
-    NODE.create_channel()
-    NODE.initialize()
-    timer = Timer(10, NODE.enter_critical_section, [])
-    timer.start()
-    NODE.consume()
+    node.create_channel()
+    node.initialize()
+    node.critical_section_timer = create_timer(cs_entering_law, node.enter_critical_section)
+    if(node.number == 0):
+        node.crash_timer = create_timer(crash_law, node.restart)
+    
+    node.consume()
     
