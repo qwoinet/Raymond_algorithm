@@ -2,8 +2,8 @@
 
 
 Quickstart:
-```
-virtualenv -p python3 venv
+```bash
+virtualenv -p python venv
 source venv/bin/activate
 pip install -r requirements.txt
 docker-compose up -d
@@ -11,8 +11,8 @@ docker-compose up -d
 
 
 Start a configuration:
-```
-python3 node.py 0 1 2
-python3 node.py 1 0
-python3 node.py 2 0
+```bash
+python node.py 0 1 2
+python node.py 1 0
+python node.py 2 0
 ```
