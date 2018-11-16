@@ -63,14 +63,14 @@ class Node:
                 self.send_msg(n, MSG_INIT)
 
     def restart(self):
-        print("CRASHED... :(")
+        print("%s: CRASHED... :(" % self.name)
         self.holder = None
         self.using = False
         self.request_Q = deque()
         self.asked = False
         if self.critical_section_timer:
             self.critical_section_timer.cancel()
-        print("BEGIN RECOVERY")
+        print("%s: BEGIN RECOVERY" % self.name)
         self.recovering = True
         self.advise_answers = []
 
@@ -90,7 +90,7 @@ class Node:
 
     def quit_critical_section(self):
         self.using = False
-        print("QUITTING CRITICAL SECTION")
+        print("%s: QUITTING CRITICAL SECTION" % self.name)
         self.critical_section_timer = create_timer(
             cs_entering_law, self.enter_critical_section
         )
@@ -108,14 +108,14 @@ class Node:
             self.asked = False
             if self.holder == self.number:
                 self.using = True
-                print("ENTERING CRITICAL SECTION")
+                print("%s: ENTERING CRITICAL SECTION" % self.name)
                 self.critical_section_timer = create_timer(
                     cs_quitting_law, self.quit_critical_section
                 )
                 # print('using', self.using)
             else:
                 self.send_msg(self.holder, MSG_PRIVILEGE)
-                print("SEND PRIVILEGE TO %d" % self.holder)
+                print("%s: SEND PRIVILEGE TO %d" % (self.name, self.holder))
 
     def make_request(self):
         if (
@@ -184,7 +184,7 @@ class Node:
             self.critical_section_timer = create_timer(
                 cs_entering_law, self.enter_critical_section
             )
-            print("FINISHED RECOVERY")
+            print("%s: FINISHED RECOVERY" % self.name)
             self.assign_privilege()
             self.make_request()
 
@@ -192,7 +192,7 @@ class Node:
         # print('channel', channel)
         # print('method', method)
         # print('properties', properties)
-        print("body", body)
+        print("%s: RECEIVED '%s'" % (self.name, body))
 
         msg_tuple = body.split()
         msg_type = msg_tuple[0]
@@ -208,7 +208,7 @@ class Node:
         elif msg_type == MSG_ADVISE:
             self.received_advise(msg_tuple)
         else:
-            print("unkown message type : ", msg_type)
+            print("%s: unkown message type: '%s'" % (self.name, msg_type))
 
     def send_msg(self, dest, msg_type, body=""):
         self.channel.basic_publish(
@@ -219,6 +219,7 @@ class Node:
 
 
 def create_timer(law, callback):
+    return None
     l = law()
     timer = Timer(l, callback, [])
     timer.start()
