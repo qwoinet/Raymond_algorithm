@@ -58,7 +58,7 @@ class VisualizationThread(Thread):
                 yield (node.number, node.holder, True)
 
     def update_graph(self):
-        for src, dst in list(self.graph.edges):
+        for src, dst in list(self.graph.edges()):
             self.graph.remove_edge(src, dst)
         self.create_edges()
         self.colors = []
@@ -105,23 +105,41 @@ class ControlThread(Thread):
     def __init__(self, nodes):
         super(ControlThread, self).__init__()
         self.nodes = nodes
+        self.next_crash = [random.randrange(0, 10000) for _ in nodes]
+        self.next_critical_action = [random.randrange(0, 1000) for _ in nodes]
 
     def run(self):
         while True:
-            time.sleep(random.random() * 3)
-            node = self.nodes[random.randrange(0, len(self.nodes))]
+            for i in range(len(nodes)):
+                self.next_crash[i] -= 1
+                self.next_critical_action[i] -= 1
 
-            if node.node.recovering or node.node.iaskedforprivilege:
-                continue
-            if random.random() < 0.9:
-                node.node.enter_critical_section()
-                while not node.node.using:
-                    time.sleep(0.1)
-                time.sleep(1 + random.random() * 3)
-            #     print("\tnode %d quits critical section _ %d" % (node.node.number, rval))
-                node.node.quit_critical_section()
-            elif not node.node.using:
-                node.node.restart()
+                if self.next_crash[i] <= 0:
+                    self.nodes[i].node.restart();
+                    self.next_crash[i] = random.randrange(0, 2000)
+                if self.next_critical_action[i] <= 0 and not self.nodes[i].node.recovering:
+                    if self.nodes[i].node.using:
+                        self.nodes[i].node.quit_critical_section()
+                        self.next_critical_action[i] = random.randrange(0, 1000)
+                    elif not self.nodes[i].node.iaskedforprivilege:
+                        self.nodes[i].node.enter_critical_section()
+                        self.next_critical_action[i] = random.randrange(0, 1000)
+
+
+            # time.sleep(random.random() * .001)
+            # node = self.nodes[random.randrange(0, len(self.nodes))]
+
+            # if node.node.recovering or node.node.iaskedforprivilege:
+            #     continue
+            # if random.random() < 0.9:
+            #     node.node.enter_critical_section()
+            #     while not node.node.using:
+            #         time.sleep(0.1)
+            #     time.sleep(1 + random.random() * 3)
+            # #     print("\tnode %d quits critical section _ %d" % (node.node.number, rval))
+            #     node.node.quit_critical_section()
+            # elif not node.node.using:
+            #     node.node.restart()
 
 
             # rval = random.randrange(100000, 1000000)
@@ -150,9 +168,6 @@ if __name__ == "__main__":
         NodeThread(6, [5]),
     ]
     controls = [
-        ControlThread(nodes),
-        ControlThread(nodes),
-        ControlThread(nodes),
         ControlThread(nodes),
     ]
     viz = VisualizationThread(nodes)

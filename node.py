@@ -101,6 +101,7 @@ class Node:
         self.make_request()
 
     def assign_privilege(self):
+        # time.sleep(.5)
         if (
             not self.recovering
             and self.holder == self.number
@@ -175,7 +176,7 @@ class Node:
             if self.holder is None:
                 if len(holder_list) == 0:
                     self.holder = self.number
-                    self.holder = False
+                    self.asked = False
                 else:
                     self.holder = holder_list[0][0]
                     self.asked = holder_list[0][1] == ADVISE_4
