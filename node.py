@@ -39,6 +39,7 @@ class Node:
         self.request_Q = deque()
         self.asked = False
 
+        self.iaskedforprivilege = False ##############################
         self.recovering = False
         self.advise_answers = []
 
@@ -68,6 +69,7 @@ class Node:
         self.using = False
         self.request_Q = deque()
         self.asked = False
+        self.iaskedforprivilege = False ###############################
         if self.critical_section_timer:
             self.critical_section_timer.cancel()
         print("%s: BEGIN RECOVERY" % self.name)
@@ -85,6 +87,7 @@ class Node:
 
     def enter_critical_section(self):
         self.request_Q.append(self.number)
+        self.iaskedforprivilege = True #####################################
         self.assign_privilege()
         self.make_request()
 
@@ -107,6 +110,7 @@ class Node:
             self.holder = self.request_Q.popleft()
             self.asked = False
             if self.holder == self.number:
+                self.iaskedforprivilege = False #############################
                 self.using = True
                 print("%s: ENTERING CRITICAL SECTION" % self.name)
                 self.critical_section_timer = create_timer(

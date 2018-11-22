@@ -110,16 +110,33 @@ class ControlThread(Thread):
         while True:
             time.sleep(random.random() * 3)
             node = self.nodes[random.randrange(0, len(self.nodes))]
-            if node.node.recovering:
+
+            if node.node.recovering or node.node.iaskedforprivilege:
                 continue
             if random.random() < 0.9:
                 node.node.enter_critical_section()
                 while not node.node.using:
                     time.sleep(0.1)
-                time.sleep(random.random() * 3)
+                time.sleep(1 + random.random() * 3)
+            #     print("\tnode %d quits critical section _ %d" % (node.node.number, rval))
                 node.node.quit_critical_section()
             elif not node.node.using:
                 node.node.restart()
+
+
+            # rval = random.randrange(100000, 1000000)
+            # if node.node.recovering:
+            #     continue
+            # if random.random() < 0.9:
+            #     print("\tnode %d enter critical section _ %d" % (node.node.number, rval))
+            #     node.node.enter_critical_section()
+            #     while not node.node.using:
+            #         time.sleep(0.1)
+            #     time.sleep(1 + random.random() * 3)
+            #     print("\tnode %d quits critical section _ %d" % (node.node.number, rval))
+            #     node.node.quit_critical_section()
+            # elif not node.node.using:
+            #     node.node.restart()
 
 
 if __name__ == "__main__":
