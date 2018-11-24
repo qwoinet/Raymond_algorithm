@@ -101,7 +101,7 @@ class Node:
         self.make_request()
 
     def assign_privilege(self):
-        # time.sleep(.5)
+        time.sleep(.1)
         if (
             not self.recovering
             and self.holder == self.number

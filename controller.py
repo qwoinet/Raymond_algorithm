@@ -110,6 +110,7 @@ class ControlThread(Thread):
         self.next_critical_action = [random.randrange(0, 1000) for _ in nodes]
 
     def run(self):
+        time.sleep(1)
         while True:
             for i in range(len(nodes)):
                 self.next_crash[i] -= 1
@@ -124,10 +125,10 @@ class ControlThread(Thread):
                         self.next_critical_action[i] = random.randrange(0, 1000)
                     elif not self.nodes[i].node.iaskedforprivilege:
                         self.nodes[i].node.enter_critical_section()
-                        self.next_critical_action[i] = random.randrange(0, 1000)
+                        self.next_critical_action[i] = random.randrange(0, 100)
 
 
-            # time.sleep(random.random() * .001)
+            time.sleep(random.random() * .01)
             # node = self.nodes[random.randrange(0, len(self.nodes))]
 
             # if node.node.recovering or node.node.iaskedforprivilege:
