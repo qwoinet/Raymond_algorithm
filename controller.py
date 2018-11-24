@@ -29,7 +29,9 @@ class VisualizationThread(Thread):
 
         self.graph = nx.DiGraph()
         self.graph.add_nodes_from([node.node.number for node in self.nodes])
+        self.create_edges()
         self.graph_layout = nx.spring_layout(self.graph)
+
         self.colors = []
 
     def unoriented_edges(self):
@@ -51,9 +53,8 @@ class VisualizationThread(Thread):
             if node.holder == node.number:
                 pass
             elif node.holder is None:
-                pass
-                # for n in node.neighbors:
-                #     yield (node.number, n, False)
+                for n in node.neighbors:
+                    yield (node.number, n, False)
             else:
                 yield (node.number, node.holder, True)
 
@@ -156,17 +157,26 @@ class ControlThread(Thread):
             # elif not node.node.using:
             #     node.node.restart()
 
+def create_graph(nbr_nodes):
+    tree = nx.generators.random_tree(nbr_nodes)
+    nodes = []
+    for i in range(nbr_nodes):
+        nodes.append(NodeThread(i, list(tree.neighbors(i))))
+    return nodes
+
 
 if __name__ == "__main__":
-    nodes = [
-        NodeThread(0, [1, 2]),
-        NodeThread(1, [0]),
-        NodeThread(2, [0, 3, 4, 5]),
-        NodeThread(3, [2]),
-        NodeThread(4, [2]),
-        NodeThread(5, [2, 6]),
-        NodeThread(6, [5]),
-    ]
+    nodes = create_graph(50)
+    
+    # nodes = [
+    #     NodeThread(0, [1, 2]),
+    #     NodeThread(1, [0]),
+    #     NodeThread(2, [0, 3, 4, 5]),
+    #     NodeThread(3, [2]),
+    #     NodeThread(4, [2]),
+    #     NodeThread(5, [2, 6]),
+    #     NodeThread(6, [5]),
+    # ]
     controls = [
         ControlThread(nodes),
     ]
