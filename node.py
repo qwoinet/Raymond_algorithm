@@ -3,7 +3,7 @@
 
 import pika
 import sys
-from threading import Timer
+from threading import Timer, Lock
 from collections import deque
 import time
 import random
@@ -47,6 +47,8 @@ class Node:
         self.crash_timer = None
 
         self.channel = None
+
+        self.lock = Lock()
 
     def create_channel(self):
         self.connection = pika.BlockingConnection(
@@ -123,6 +125,7 @@ class Node:
                 print("%s: SEND PRIVILEGE TO %d" % (self.name, self.holder))
 
     def make_request(self):
+        self.lock.acquire()
         if (
             not self.recovering
             and self.holder != self.number
@@ -131,6 +134,7 @@ class Node:
         ):
             self.send_msg(self.holder, MSG_REQ)
             self.asked = True
+        self.lock.release()
 
     def received_init(self, msg_tuple):
         self.holder = int(msg_tuple[1])
