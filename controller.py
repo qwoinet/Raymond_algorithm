@@ -4,6 +4,7 @@
 from threading import Thread
 import time
 import random
+import pika
 
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -108,8 +109,17 @@ class ControlThread(Thread):
         self.nodes = nodes
         self.next_crash = [random.randrange(0, 10000) for _ in nodes]
         self.next_critical_action = [random.randrange(0, 1000) for _ in nodes]
+        self.channel = None
+
+    def create_channel(self):
+        self.connection = pika.BlockingConnection(
+            pika.ConnectionParameters(host="localhost")
+        )
+        self.channel = self.connection.channel()
+        # self.channel.queue_declare(queue=self.name)
 
     def run(self):
+        self.create_channel()
         time.sleep(1)
         while True:
             for i in range(len(nodes)):

@@ -65,7 +65,7 @@ class Node:
             for n in self.neighbors:
                 self.send_msg(n, MSG_INIT)
 
-    def restart(self):
+    def restart(self, channel):
         print("%s: CRASHED... :(" % self.name)
         self.holder = None
         self.using = False
@@ -78,31 +78,38 @@ class Node:
         self.recovering = True
         self.advise_answers = []
 
-        time.sleep(NODE_RESTART_SLEEP_TIME)
+        def restart_callback(self, channel):
+            for n in self.neighbors:
+                self.send_msg(n, MSG_RESTART, channel=channel)
 
-        for n in self.neighbors:
-            self.send_msg(n, MSG_RESTART)
+	timer = Timer(
+                NODE_RESTART_SLEEP_TIME, 
+                restart_callback, 
+                [self, channel],
+        )
+	timer.start()
+
 
     def consume(self):
         self.channel.basic_consume(self.process_msg, queue=self.name, no_ack=True)
         self.channel.start_consuming()
 
-    def enter_critical_section(self):
+    def enter_critical_section(self, channel):
         self.request_Q.append(self.number)
         self.iaskedforprivilege = True #####################################
-        self.assign_privilege()
-        self.make_request()
+        self.assign_privilege(channel)
+        self.make_request(channel)
 
-    def quit_critical_section(self):
+    def quit_critical_section(self, channel):
         self.using = False
         print("%s: QUITTING CRITICAL SECTION" % self.name)
         self.critical_section_timer = create_timer(
             cs_entering_law, self.enter_critical_section
         )
-        self.assign_privilege()
-        self.make_request()
+        self.assign_privilege(channel)
+        self.make_request(channel)
 
-    def assign_privilege(self):
+    def assign_privilege(self, channel=None):
         time.sleep(.1)
         if (
             not self.recovering
@@ -121,20 +128,18 @@ class Node:
                 )
                 # print('using', self.using)
             else:
-                self.send_msg(self.holder, MSG_PRIVILEGE)
+                self.send_msg(self.holder, MSG_PRIVILEGE, channel=channel)
                 print("%s: SEND PRIVILEGE TO %d" % (self.name, self.holder))
 
-    def make_request(self):
-        self.lock.acquire()
+    def make_request(self, channel=None):
         if (
             not self.recovering
             and self.holder != self.number
             and len(self.request_Q) != 0
             and not self.asked
         ):
-            self.send_msg(self.holder, MSG_REQ)
+            self.send_msg(self.holder, MSG_REQ, channel=channel)
             self.asked = True
-        self.lock.release()
 
     def received_init(self, msg_tuple):
         self.holder = int(msg_tuple[1])
@@ -219,8 +224,10 @@ class Node:
         else:
             print("%s: unkown message type: '%s'" % (self.name, msg_type))
 
-    def send_msg(self, dest, msg_type, body=""):
-        self.channel.basic_publish(
+    def send_msg(self, dest, msg_type, body="", channel=None):
+        if channel is None:
+            channel = self.channel
+        channel.basic_publish(
             exchange="",
             routing_key=NODE_NAME_PREFIX + str(dest),
             body=("%s %s %s" % (msg_type, self.number, body)).strip(),
